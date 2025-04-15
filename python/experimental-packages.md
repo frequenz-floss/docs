@@ -11,6 +11,7 @@ Experimental features, symbols and APIs follow these guidelines (using words lik
 * Breaking changes MUST NOT be introduced in minor releases, same as the main library code.
 * Code MAY be unmaintained (reported issues MAY never be fixed).
 * Code MAY have low quality.
+* Additions or changes to `experimental` MAY NOT appear in release notes.
 * Additions to `experimental` SHOULD have a low entry barrier.
 * Unmaintained features and symbols (the ones that are already discarded as a candidate for the main library) MUST be deprecated as soon as they are considered inviable.
 * Users SHOULD NOT use deprecated features or symbols.
