@@ -84,6 +84,34 @@ backwards compatible):
   - Deprecate the old symbol instead of removing it, giving clear
     instructions on how to replace the deprecated symbol.
 
+#### Tightening an invariant without a hard break
+
+When tightening a validation rule or invariant on existing code:
+
+* Keep currently valid behavior unchanged in patch releases.
+* Emit a runtime warning only for usages that will become invalid under the
+  stricter rules in a future release.
+* Enforce the stricter validation rule as a hard error only in the next minor
+  release.
+* Where feasible, offer callers an opt-in mechanism (such as an optional
+  parameter or flag) to preview or enforce the future behavior early.
+* Note that emitting a runtime warning requires a runtime interception point,
+  such as a constructor, function call, or property accessor. Where no
+  interception point exists (for example, a plain data attribute or mutable
+  field), use documented or static deprecation notices instead.
+
+#### Deprecating a single member or attribute
+
+When deprecating individual parts of an existing structure rather than an
+entire type or function:
+
+* **Methods and properties:** Mark them as `@deprecated`.
+* **Enum members:** Use `frequenz.core.enum.Enum` to mark members as deprecated.
+* **Plain data attributes:** Plain data attributes and public fields typically
+  lack runtime interception points. Mark them as deprecated in documentation
+  and static type annotations, and defer structural removal or renaming to a
+  minor release.
+
 ### Minor releases
 
 * Remove all old deprecated symbols.
