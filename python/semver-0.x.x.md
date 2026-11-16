@@ -16,6 +16,11 @@ development fast, and yet make the life of users of those libraries easier,
 without ending in [dependency
 hell](https://en.wikipedia.org/wiki/Dependency_hell).
 
+This document covers *when* symbols may be deprecated and removed in 0.x.x
+projects. How to actually mark a symbol as deprecated is covered in
+[Deprecations](deprecations.md), which applies to every project, including
+those past 1.0.0.
+
 In this document we use the words like MUST, MAY, etc. with the meaning defined
 by [RFC2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
@@ -103,10 +108,12 @@ When tightening a validation rule or invariant on existing code:
 #### Deprecating a single member or attribute
 
 When deprecating individual parts of an existing structure rather than an
-entire type or function:
+entire type or function (see [Deprecations](deprecations.md) for how to mark
+each of these):
 
 * **Methods and properties:** Mark them as `@deprecated`.
-* **Enum members:** Use `frequenz.core.enum.Enum` to mark members as deprecated.
+* **Enum members:** Use `frequenz.core.enum.Enum` to mark members as deprecated,
+  see [Use `frequenz.core` for enum members and moved symbols](deprecations.md#use-frequenzcore-for-enum-members-and-moved-symbols).
 * **Plain data attributes:** Plain data attributes and public fields typically
   lack runtime interception points. Mark them as deprecated in documentation
   and static type annotations, and defer structural removal or renaming to a
@@ -159,8 +166,13 @@ We can create a new function `foo2` with the new name and deprecate the old
 one:
 
 ```python
-@deprecated("foo is deprecated, please use `foo2` instead")
-def foo(wrong_arg: int) -> None: ...
+@deprecated("mypkg.foo is deprecated. Use mypkg.foo2 instead.")
+def foo(wrong_arg: int) -> None:
+    """Do foo.
+
+    Deprecated:
+        Deprecated since v0.1.1. Use [`foo2`][mypkg.foo2] instead.
+    """
 
 def foo2(right_arg: str) -> None: ...
 ```

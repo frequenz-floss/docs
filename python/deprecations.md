@@ -1,0 +1,691 @@
+# Deprecations
+
+This document describes how Python projects at Frequenz deprecate things: what
+a deprecation promises to users, how to mark a symbol so that the promise is
+visible everywhere it can be, what to do when no marker reaches the thing being
+deprecated, and what has to accompany every deprecation.
+
+It applies to every project regardless of its version. The [0.x.x versioning
+rules](semver-0.x.x.md) say *when* a deprecated symbol may be removed in
+projects that are still below 1.0.0; this document says how to deprecate it in
+the first place, which is the same work after 1.0.0.
+
+In this document we use the words like MUST, MAY, etc. with the meaning defined
+by [RFC2119](https://datatracker.ietf.org/doc/html/rfc2119).
+
+## A deprecation is never a breaking change
+
+A deprecated symbol keeps working exactly as before. Code that uses it MUST
+keep running, and the test suite of a downstream project MUST keep passing,
+until the release that actually removes the symbol. The deprecation is a
+message; the removal is the change.
+
+Two things that are sometimes proposed break this promise and MUST NOT be done:
+
+* Telling consumers to run with `-W error::DeprecationWarning`. That turns
+  every deprecation into a crash at the point of use.
+* Withholding a symbol from type checkers, for example by defining it only at
+  runtime, so that `mypy` reports `attr-defined`. That turns every deprecation
+  into a failing type check.
+
+Frequenz projects configure `pytest` accordingly, in `pyproject.toml`:
+
+```toml
+[tool.pytest.ini_options]
+filterwarnings = [
+    "error",
+    "once::DeprecationWarning",
+    "once::PendingDeprecationWarning",
+    'error:.*fqn\.mypkg\.[\w\.]+ (is|was) deprecated:DeprecationWarning',
+]
+```
+
+This is the same policy written as test configuration: every other warning is
+an error, deprecations coming from dependencies are reported once and do not
+fail the suite.
+
+The last entry is the exception: using a symbol the project deprecated itself
+is an error, so the project never releases code that still uses it, which
+users would get as warnings they can do nothing about. It doesn't break
+downstream projects, since it only matches the project's own package (here
+`fqn.mypkg`), and it goes after the `once::` entries because later filters take
+precedence. A filter can only tell the project's own deprecations apart by
+their message, so this is a heuristic that relies on every message containing
+the fully qualified name of the deprecated symbol followed by `is deprecated`
+(see [the rules for warnings](#the-warning-and-the-notice)). The pattern of
+that entry starts with `.*`, so a message can start with other words, such as
+`The argument raw in` or `Setting the property timeout in`.
+The [repository configuration
+template](https://github.com/frequenz-floss/frequenz-repo-config-python)
+generates this entry and its migration script adds it to existing projects.
+
+## Removing a deprecated symbol
+
+When possible the removal point follows downstream adoption.
+
+Before removing a deprecated symbol, check whether downstream projects still
+import it or still expose it in a public signature. Remove it once they have
+migrated, or keep the compatibility symbol until they have. For clients built
+on `frequenz-client-common`, this is the rule already stated in its
+[deprecation and compatibility
+guide](https://github.com/frequenz-floss/frequenz-client-common-python/blob/v0.x.x/docs/wrapping-guide/deprecation-and-compatibility.md).
+
+When this is not possible, removal after a fixed number of releases or a
+specific target release is fine.
+
+In any case, when removing a deprecated symbol, **always** follow [semver
+2.0.0](https://semver.org/spec/v2.0.0.html) (remove only in major releases) and
+our own [semver-0.x.x.md](semver-0.x.x.md) (remove only in minor
+releases) rules.
+
+## The warning and the notice
+
+Every deprecation reaches users through two texts, written for different
+readers, so they follow different rules:
+
+* The **warning**, emitted at runtime and, for decorated symbols, also reported
+  by `mypy`. It is read in a terminal or a log, far from the deprecated symbol:
+  it points at the line that used it, not at the symbol itself.
+* The **notice**, the `Deprecated:` admonition in the API documentation. It is
+  read right where the deprecated symbol is documented.
+
+The warning MUST:
+
+* Start with the pattern `fqn.mypkg.OldThing is deprecated`, with the fully
+  qualified name as plain text. The `pytest` filter in [A deprecation is never
+  a breaking change](#a-deprecation-is-never-a-breaking-change) relies on it to
+  make the project's own uses of the symbol an error, and misses any message
+  that doesn't follow it. The exception is a deprecated part of a symbol, or a
+  deprecated way to use it. Start the message with that part or that use,
+  followed by the fully qualified name of the symbol it belongs to:
+    * An argument, as in `The argument raw in fqn.mypkg.connect is
+      deprecated.`
+    * A method, with parentheses, as in `The method close() in
+      fqn.mypkg.Connection is deprecated.`
+    * A property, as in `The property timeout in fqn.mypkg.Connection is
+      deprecated.` An attribute becomes a property to be deprecated (see
+      below), so its message starts with `The property` too.
+    * An overload, saying what the deprecated calls pass, as in `Passing a
+      float as timeout to fqn.mypkg.wait is deprecated.`
+    * A property's setter or deleter, as in `Setting the property timeout in
+      fqn.mypkg.Connection is deprecated.` or `Deleting the property timeout
+      in fqn.mypkg.Connection is deprecated.`
+
+  These messages still match the filter, since the fully qualified name is
+  followed by `is deprecated`.
+* Say what to use instead, by its fully qualified name too, as in
+  `fqn.mypkg.OldThing is deprecated. Use fqn.mypkg.NewThing instead.` When
+  the replacement is an argument of the same function, or a member of the
+  same class, name it without the function or the class, as in `Use
+  aclose() instead.` See [Deprecating a function
+  argument](#deprecating-a-function-argument) and [Deprecating a method, a
+  property or an attribute](#deprecating-a-method-a-property-or-an-attribute).
+* Be plain text, without backticks or cross-references, which are only noise in
+  a terminal.
+* Be a sentence or two, written as implicit concatenation of single-line
+  strings. A triple-quoted multi-line message keeps its indentation and prints
+  an indented warning.
+
+It SHOULD NOT say since which version the symbol is deprecated. What matters
+to whoever runs the code is that it is deprecated now; the version belongs in
+the notice, and leaving it out keeps the warning short.
+
+The notice MUST:
+
+* Say since which version the symbol is deprecated and what to use instead,
+  linking the replacement in code font, as in ``Deprecated since v1.2.0. Use
+  [`NewThing`][fqn.mypkg.NewThing] instead.``
+* Not repeat the name of the deprecated symbol, which is right above it.
+
+For the link text, use the fully qualified name when the replacement lives in
+another module, so readers see where it went, as in
+``[`fqn.newpkg.NewThing`][]``, and just its name when the context makes it
+obvious, such as another member of the same enum, as in
+``[`OPEN`][fqn.mypkg.TaskStatus.OPEN]``.
+
+Anything longer than "use X instead", such as renamed fields or changed
+behavior, belongs in the docstring body as ordinary prose, not in the notice.
+
+When many symbols share the same long explanation, such as every member of a
+deprecated enum, explain it once, in the notice of the symbol they belong to,
+and have the others link it: ``Deprecated since v1.2.0. See
+[`OldEnum`][fqn.mypkg.OldEnum] for what to use instead.`` A link is easy to
+follow in the documentation, but not in a terminal, so each warning still
+explains the replacement in full.
+
+The tools below generate both texts wherever they have what they need, which
+[What the documentation tooling does](#what-the-documentation-tooling-does)
+sums up; everywhere else the notice is [written by
+hand](#writing-the-notice-by-hand).
+
+## Use `warnings.deprecated` / `typing_extensions.deprecated` where it reaches
+
+On a class or a function, the
+[`warnings.deprecated`](https://docs.python.org/3/library/warnings.html#warnings.deprecated)
+decorator (or
+[`typing_extensions.deprecated`](https://typing-extensions.readthedocs.io/en/stable/#typing_extensions.deprecated)
+for Python <3.12) gives three things:
+
+* `mypy` reports every use of the symbol.
+* The symbol warns at runtime.
+* The symbol is marked as deprecated in the API documentation.
+
+The decorator only takes the warning, so the notice is written by hand in the
+docstring:
+
+```python
+@deprecated("fqn.mypkg.OldThing is deprecated. Use fqn.mypkg.NewThing instead.")
+class OldThing:
+    """A thing, now called `NewThing`.
+
+    Deprecated:
+        Deprecated since v1.2.0. Use [`NewThing`][fqn.mypkg.NewThing] instead.
+    """
+```
+
+On a class, the decorator warns on instantiation only, because it wraps
+`__new__`. A type that users receive rather than construct therefore emits no
+runtime warning at all, which is worth knowing when judging whether the runtime
+signal is doing any work for that symbol.
+
+## Use `frequenz.core` for enum members and moved symbols
+
+The decorator cannot be applied to an enum member or to a module-level alias.
+`frequenz-core` has a helper for each, both warn at runtime, and both take the
+deprecation as structured arguments, so the warning and the notice are both
+generated from them:
+
+* [`frequenz.core.enum.deprecated_member()`](https://frequenz-floss.github.io/frequenz-core-python/v1/reference/frequenz/core/enum/#frequenz.core.enum.deprecated_member)
+  keeps an enum member usable, on an enum built from
+  [`frequenz.core.enum.Enum`](https://frequenz-floss.github.io/frequenz-core-python/v1/reference/frequenz/core/enum/#frequenz.core.enum.Enum),
+  and warns when code reaches it by name.
+* [`frequenz.core.warnings.deprecated_aliases()`](https://frequenz-floss.github.io/frequenz-core-python/v1/reference/frequenz/core/warnings/#frequenz.core.warnings.deprecated_aliases)
+  keeps an old import path working, see [Moving a symbol to another
+  module](#moving-a-symbol-to-another-module).
+
+```python
+from frequenz.core.enum import Enum, deprecated_member
+
+
+class TaskStatus(Enum):
+    OPEN = 1
+    PENDING = deprecated_member(1, new_name="OPEN", since="v1.2.0")
+```
+
+`new_name` is the member to use instead, in the same enum, and `since` the
+version it is deprecated in. Reaching `TaskStatus.PENDING` warns
+`fqn.mypkg.TaskStatus.PENDING is deprecated. Use fqn.mypkg.TaskStatus.OPEN
+instead.`, and its notice says ``Deprecated since v1.2.0. Use
+[`OPEN`][fqn.mypkg.TaskStatus.OPEN] instead.``
+
+When there is no member to point at, or the standard wording is not enough,
+pass a `message`, written by the rules for warnings above. It replaces the
+warning only, so write the notice by hand too, saying the version there:
+without `new_name` there is no generated notice, so `since` would not be used.
+
+```python
+class TaskStatus(Enum):
+    UNSPECIFIED = deprecated_member(
+        0,
+        "fqn.mypkg.TaskStatus.UNSPECIFIED is deprecated. "
+        "Use the integer 0 instead if you need that low-level value.",
+    )
+    """The status is unspecified.
+
+    Deprecated:
+        Deprecated since v1.2.0. Use the integer `0` instead if you need that
+        low-level value.
+    """
+```
+
+The documentation is built without running the code, so write these arguments
+as string literals right in the call. What can't be read that way is documented
+as well as possible, with a warning, see [What the documentation tooling
+does](#what-the-documentation-tooling-does).
+
+## Deprecating a function argument
+
+The decorator can't be applied to an argument, but it can be applied to an
+`@overload`. Add an overload that takes the deprecated argument, and decorate
+that overload. `mypy` then reports every call that matches it. An overload
+doesn't warn at runtime, so the implementation warns when it gets the argument. The notice is [written
+by hand](#writing-the-notice-by-hand).
+
+```python
+import warnings
+from typing import overload
+
+from typing_extensions import deprecated
+
+
+@overload
+def connect(*, payload: bytes) -> None: ...
+@overload
+@deprecated(
+    "The argument raw in fqn.mypkg.connect is deprecated. Use payload instead."
+)
+def connect(*, raw: bytes) -> None: ...
+def connect(*, payload: bytes | None = None, raw: bytes | None = None) -> None:
+    """Connect to the service.
+
+    Deprecated:
+        The `raw` argument is deprecated since v1.2.0. Use `payload` instead.
+    """
+    if raw is not None:
+        if payload is not None:
+            raise TypeError("connect() got both `raw` and `payload`")
+        warnings.warn(
+            "The argument raw in fqn.mypkg.connect is deprecated. "
+            "Use payload instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        payload = raw
+    ...
+```
+
+* Start the warning with the argument, then the fully qualified name of the
+  function, as in the example. Use the same text in the decorator and in
+  `warnings.warn()`. Name the replacement argument without the function, as in
+  `Use payload instead.`, because the message already has the function name.
+  The version goes in the notice, as for any other deprecation.
+* Use `stacklevel=2` so the warning points at the line that passed the argument.
+  Add one level for each helper function between that line and the
+  `warnings.warn()` call.
+* Passing the deprecated argument and its replacement together is an error,
+  like any invalid call. Raise `TypeError` before warning.
+* If callers can pass the deprecated argument by position, keep it in its
+  position and make its replacement keyword-only. The arguments after the
+  deprecated one can then be passed by position only in calls that also pass
+  the deprecated argument. In the overload with the replacement, make them
+  keyword-only too. This deprecates passing them by position, so say it in the
+  notice and the release notes.
+
+## Deprecating an overload
+
+The decorator works on any overload, not only on one that takes a deprecated
+argument. To stop accepting a type, for example, decorate the overload that
+takes it. As for an argument, the implementation warns at runtime, with the
+same text and `stacklevel`, and the notice is [written by
+hand](#writing-the-notice-by-hand) in the function's docstring:
+
+```python
+import warnings
+from datetime import timedelta
+from typing import overload
+
+from typing_extensions import deprecated
+
+
+@overload
+@deprecated(
+    "Passing a float as timeout to fqn.mypkg.wait is deprecated. "
+    "Use a datetime.timedelta instead."
+)
+def wait(timeout: float) -> None: ...
+@overload
+def wait(timeout: timedelta) -> None: ...
+def wait(timeout: float | timedelta) -> None:
+    """Wait until the service is ready.
+
+    Deprecated:
+        Passing a `float` as `timeout` is deprecated since v1.2.0. Use a
+        [`timedelta`][datetime.timedelta] instead.
+    """
+    if not isinstance(timeout, timedelta):
+        warnings.warn(
+            "Passing a float as timeout to fqn.mypkg.wait is deprecated. "
+            "Use a datetime.timedelta instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        timeout = timedelta(seconds=timeout)
+    ...
+```
+
+* Start the warning with what the deprecated calls pass, then the fully
+  qualified name of the function, as in the example.
+* `mypy` uses the first overload that matches a call. Put the deprecated
+  overload before any other overload that accepts the same calls, or `mypy`
+  matches that one and reports nothing.
+
+## Deprecating a method, a property or an attribute
+
+The decorator works on a method like on any function: `mypy` reports every
+call, the method warns at runtime, and the notice is [written by
+hand](#writing-the-notice-by-hand):
+
+```python
+class Connection:
+    @deprecated(
+        "The method close() in fqn.mypkg.Connection is deprecated. "
+        "Use aclose() instead."
+    )
+    def close(self) -> None:
+        """Close the connection.
+
+        Deprecated:
+            Deprecated since v1.2.0. Use [`aclose()`][fqn.mypkg.Connection.aclose]
+            instead.
+        """
+```
+
+A property is a method too, so put the decorator under `@property`. Put it on
+the setter and the deleter too, if there are any, with the same message: each
+one warns only when it runs. An attribute has no code that runs when it is
+read, so turn it into a property first:
+
+```python
+class Connection:
+    @property
+    @deprecated(
+        "The property timeout in fqn.mypkg.Connection is deprecated. "
+        "Use timeout_s instead."
+    )
+    def timeout(self) -> float:
+        """The timeout, in seconds.
+
+        Deprecated:
+            Deprecated since v1.2.0. Use
+            [`timeout_s`][fqn.mypkg.Connection.timeout_s] instead.
+        """
+        return self.timeout_s
+```
+
+`mypy` doesn't report reading a property that has a setter, even with the
+decorator on the getter. It only reports setting it, when the setter has the
+decorator too. Reading it still warns at runtime.
+
+To deprecate only setting or deleting a property, for example to make it
+read-only, put the decorator only on the setter or the deleter. The
+documentation doesn't show their docstrings, so write the notice in the
+property's docstring, the getter's, and say which part is deprecated:
+
+```python
+class Connection:
+    @property
+    def timeout(self) -> float:
+        """The timeout, in seconds.
+
+        Deprecated:
+            Setting it is deprecated since v1.2.0. Pass the timeout to
+            [`Connection()`][fqn.mypkg.Connection] instead.
+        """
+        return self._timeout
+
+    @timeout.setter
+    @deprecated(
+        "Setting the property timeout in fqn.mypkg.Connection is deprecated. "
+        "Pass the timeout to fqn.mypkg.Connection() instead."
+    )
+    def timeout(self, value: float) -> None:
+        self._timeout = value
+```
+
+`mypy` reports setting a property with a deprecated setter, but not deleting
+one with a deprecated deleter. A deprecated deleter only warns at runtime.
+
+## Writing the notice by hand
+
+Write a `Deprecated:` admonition in the docstring:
+
+* For what nothing marks: an individual function argument (see [Deprecating a
+  function argument](#deprecating-a-function-argument) for how to report it at
+  runtime and to type checkers), a whole module, a constant, or an attribute.
+* For a symbol deprecated with the decorator, which only carries the warning.
+  For a deprecated overload, setter or deleter, write it in the docstring of
+  the function or the property, since the documentation doesn't show theirs.
+* To say more than a generated notice does, for example for an alias or enum
+  member with its own `message`. A hand-written notice always replaces the
+  generated one, and it is the only way to change what the documentation says:
+  `message` only changes the warning.
+
+```python
+def connect(*, payload: bytes, raw: bytes | None = None) -> None:
+    """Connect to the service.
+
+    Deprecated:
+        The `raw` argument is deprecated since v1.2.0. Use `payload` instead.
+    """
+```
+
+* Follow the rules for notices in [The warning and the
+  notice](#the-warning-and-the-notice). A notice about part of a symbol, such
+  as one argument, one overload or the setter, has to say which part.
+* Write `Deprecated:`, not `Warning: Deprecated`. Only the former renders with
+  the deprecation style, and it is what the tooling generates. The tooling
+  recognizes only the former as a hand-written notice, so `Warning:
+  Deprecated` gets a second, generated notice and a warning.
+* Use no custom title. A title replaces the word "Deprecated" in the rendered
+  output, so `Deprecated: v1.2.0` renders as just "v1.2.0". The version goes in
+  the text.
+* Put it immediately after the summary line, since a docstring has to start
+  with its summary. On a symbol the tooling marks as deprecated, a decorated
+  class or function, an enum member or an alias, the notice is moved to the
+  top, where generated ones go, above the summary. Anywhere else, such as on a
+  module, or for an argument, an overload, a setter or a deleter, it stays
+  where it is written.
+* Write one notice per symbol. Anything longer than "use X instead" goes in the
+  docstring body as ordinary prose.
+
+## What the documentation tooling does
+
+| Deprecated with                                      | Warning                 | Notice generated from    | Write the notice by hand                |
+| ---------------------------------------------------- | ----------------------- | ------------------------ | --------------------------------------- |
+| `@deprecated(...)`                                   | the decorator's message | nothing                  | always                                  |
+| `@deprecated(...)` on an overload, setter or deleter | the decorator's message | nothing                  | always, on the function or the property |
+| `deprecated_member(..., new_name=...)`               | generated, or `message` | `since` and `new_name`   | to say more, or with a custom `message` |
+| `deprecated_member(..., message)`                    | `message`               | nothing                  | always                                  |
+| `DeprecatedAlias(...)`                               | generated, or `message` | `since` and the new path | to say more, or with a custom `message` |
+| nothing (module, constant, argument)                 | whatever the code emits | nothing                  | always                                  |
+
+A deprecated symbol the tooling marks always gets a notice, even when it can't
+be written as this guide asks: if there is no hand-written notice and nothing to
+generate one from, the documentation shows the warning, or as much as could be
+read, such as ``Deprecated. Use [`NewThing`][fqn.mypkg.NewThing] instead.``
+when `since` is missing. Each such case logs a warning, which fails the strict
+build, so it doesn't go unnoticed; the fix is to give the missing arguments as
+string literals, or to write the notice by hand.
+
+A deprecated overload, setter or deleter doesn't mark its function or property
+as deprecated. Without a hand-written notice there, the function or property
+gets one notice with the warnings of all its deprecated parts, and each part
+logs a warning.
+
+## What type checkers cannot do
+
+The type checker can't report an exact alias, a re-exported name, a module and
+a constant.
+
+[PEP 702](https://peps.python.org/pep-0702/) covers classes, functions and
+overloads only. It explicitly rejected deprecating whole modules, object
+attributes and constants, and rejected a `Deprecated[T, message]` type
+modifier. Accordingly, `mypy` accepts the decorator on `FuncDef`,
+`OverloadedFuncDef` and `TypeInfo`, and nothing else.
+
+A type alias also launders an existing deprecation. Given `Alias: TypeAlias =
+DeprecatedClass`, only the alias definition itself is reported; uses of `Alias`
+are not reported at all.
+
+So for everything in that category the rendered admonition, and the runtime
+warning where there is one, are the only channels that reach the user, which is
+why the admonition is not optional.
+
+## Moving a symbol to another module
+
+When a symbol keeps its identity and only changes location, a module
+`__getattr__` can serve the old import path while returning the very same
+object, so `isinstance` keeps working through both paths.
+[`frequenz.core.warnings.deprecated_aliases()`](https://frequenz-floss.github.io/frequenz-core-python/v1/reference/frequenz/core/warnings/#frequenz.core.warnings.deprecated_aliases)
+(available since `frequenz-core` v1.5.0) builds one:
+
+```python
+from typing import TYPE_CHECKING, TypeAlias
+
+from frequenz.core.warnings import DeprecatedAlias, deprecated_aliases
+
+if TYPE_CHECKING:
+    from newpkg.newmod import NewThing as _NewThing
+
+    OldThing: TypeAlias = _NewThing
+    """A thing, now called `NewThing`."""
+else:
+    __getattr__ = deprecated_aliases(
+        __name__,
+        DeprecatedAlias(
+            "OldThing",
+            new_module="newpkg.newmod",
+            new_name="NewThing",
+            since="v1.2.0",
+        ),
+    )
+```
+
+Each alias is a `DeprecatedAlias` naming the old symbol and where it is now:
+`new_module`, the module it lives in now, and `new_name`, its new name when it
+was renamed too. Without `new_module`, the alias points at a symbol renamed in
+its own module. `since` is the version the alias is deprecated in; since every
+alias gives its own, each can say a different version.
+
+From those, the alias warns with the standard wording, `{old} is deprecated.
+Use {new} instead.`, with fully qualified names, and its notice says
+``Deprecated since {since}. Use [`{new}`][] instead.``, showing just the new
+name for a rename within the same module.
+
+When the standard warning is not enough, give `message` too, a template taking
+only `{old}` and `{new}`, the fully qualified old and new names, and written by
+the rules for warnings. It replaces the warning only: to say more in the
+documentation, write the notice by hand in the docstring of the alias declared
+for type checkers, which replaces the generated one.
+
+Two things MUST be observed when doing this:
+
+* The `__getattr__` assignment belongs in the `else:` branch of an `if
+  TYPE_CHECKING:` block. An unconditional module-level `__getattr__` makes
+  `mypy` resolve every unknown name in that module to `Any`, silently, even
+  under `--strict`, so a typo in a downstream import stops being an error.
+* It aliases names, not modules. A package that moved wholesale needs a real
+  `__init__.py` at the old path whose body holds the alias table, because the
+  import system never consults a parent package's `__getattr__`.
+
+## When an exact alias is not the right answer
+
+An alias keeps the old and new names interchangeable, but it also removes the
+type checker's ability to report anything, as described above. Which side wins
+depends on the symbol:
+
+* **Enums:** an enum with members cannot be subclassed, so an alias is the only
+  option that keeps values comparable.
+* **A type whose shape changed:** a separate deprecated class is correct, since
+  the two are not interchangeable anyway.
+* **A type users construct:** a real deprecated class is usually worth more
+  than an alias, because identity, representation and the static signal matter
+  more there than cross-compatibility.
+
+## Using a deprecated symbol from the library's own code
+
+A library often has to keep using a symbol it deprecated itself, for example
+to convert to or from the old type. The user was already warned when they used
+the deprecated symbol, so warning them again from the library's internals is
+noise. Wrap the call that reaches the deprecated symbol, and only that call, in
+[`frequenz.core.warnings.ignoring_deprecations()`](https://frequenz-floss.github.io/frequenz-core-python/v1/reference/frequenz/core/warnings/#frequenz.core.warnings.ignoring_deprecations):
+
+```python
+from frequenz.core.warnings import ignoring_deprecations
+
+
+def from_wire(raw: str) -> OldThing:
+    with ignoring_deprecations():
+        return OldThing(raw)
+```
+
+Don't use `warnings.catch_warnings()` for this. Entering and leaving it resets
+the warnings deduplication history of the whole program, so every warning
+already shown is shown again, on every call
+([python/cpython#73858](https://github.com/python/cpython/issues/73858)).
+[`ignoring_warnings()`](https://frequenz-floss.github.io/frequenz-core-python/v1/reference/frequenz/core/warnings/#frequenz.core.warnings.ignoring_warnings)
+does the same for other warning categories.
+
+Both only add a filter while the block runs, and that filter is normally shared
+by every thread and asyncio task, so keep the block short and don't hold it
+across an `await`.
+
+## Every deprecation needs a test and a release note
+
+Every deprecation MUST come with:
+
+* An explicit assertion that the symbol warns, for example with
+  [`pytest.deprecated_call()`](https://docs.pytest.org/en/stable/reference/reference.html#pytest.deprecated_call),
+  checking the message.
+* A migration bullet in the release notes saying what to use instead and what
+  differs.
+
+The test matters more than it looks. A deprecation that silently stops firing
+fails nothing, whatever the warning filters say, since there is no warning left
+to turn into an error. Only an explicit assertion catches it.
+
+`pytest.deprecated_call()` also records the warning instead of letting the
+filter for the project's own deprecations turn it into an error, so any test
+that uses one of the project's deprecated symbols on purpose needs it. Where
+checking the warning doesn't make sense, mark the test with
+`@pytest.mark.filterwarnings("once::DeprecationWarning")` instead.
+
+That filter also catches the opposite mistake, a replacement that still goes
+through the deprecated symbol internally, but only for messages it matches, and
+a deprecation coming from a dependency is still only reported once. To test
+that the replacement doesn't warn at all, wrap it in
+[`frequenz.core.warnings.asserting_no_deprecations()`](https://frequenz-floss.github.io/frequenz-core-python/v1/reference/frequenz/core/warnings/#frequenz.core.warnings.asserting_no_deprecations),
+or
+[`asserting_no_warnings()`](https://frequenz-floss.github.io/frequenz-core-python/v1/reference/frequenz/core/warnings/#frequenz.core.warnings.asserting_no_warnings)
+for any category:
+
+```python
+from frequenz.core.warnings import asserting_no_deprecations
+
+
+def test_new_thing_does_not_warn() -> None:
+    with asserting_no_deprecations():
+        NewThing("raw")
+```
+
+It fails with an `AssertionError` listing each deprecation raised inside the
+block. It resets the deduplication history too, so keep it to tests.
+
+## Rendering deprecations in the API documentation
+
+The notices are rendered by the
+[`griffe-frequenz-core`](https://github.com/frequenz-floss/griffe-frequenz-core)
+extension (`griffe_frequenz_core.deprecations`), enabled in the mkdocstrings
+Python handler in `mkdocs.yml`. It handles the `deprecated` decorator,
+`deprecated_member()` and `deprecated_aliases()` alike, as [What the
+documentation tooling does](#what-the-documentation-tooling-does) describes:
+
+```yaml
+plugins:
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            extensions:
+              - griffe_frequenz_core.deprecations
+```
+
+The package goes in the `dev-mkdocs` dependencies. The notices it generates
+use the `deprecated` admonition kind, the same kind a hand-written
+`Deprecated:` admonition gets, so all of them look alike. That kind is styled
+in `docs/_css/mkdocstrings.css`, and both come with the [repository
+configuration
+template](https://github.com/frequenz-floss/frequenz-repo-config-python).
+
+Frequenz projects build their documentation in strict mode, so warnings fail
+the build. `griffe-frequenz-core` warns whenever it can't document a
+deprecation as this guide asks, and a link to a replacement that can't be
+resolved warns too. For a symbol that moved to another project, add that
+project's `objects.inv` to the `inventories` of the Python handler, so the link
+resolves.
+
+The extension only warns about code in the `frequenz` package. A member
+inherited from a third-party class is documented the same way, but its
+problems don't fail the build, since only its own project can fix them. A
+member inherited from another Frequenz package is checked where it is defined,
+so that package needs its notices before yours builds in strict mode.
