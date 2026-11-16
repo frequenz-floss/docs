@@ -16,6 +16,11 @@ development fast, and yet make the life of users of those libraries easier,
 without ending in [dependency
 hell](https://en.wikipedia.org/wiki/Dependency_hell).
 
+This document covers *when* symbols may be deprecated and removed in 0.x.x
+projects. How to actually mark a symbol as deprecated is covered in
+[Deprecations](deprecations.md), which applies to every project, including
+those past 1.0.0.
+
 In this document we use the words like MUST, MAY, etc. with the meaning defined
 by [RFC2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
@@ -38,8 +43,8 @@ version Z (0.y.Z):
 
 Additionally:
 
-* Deprecated symbols MAY NOT be maintained, it is recommended to switch to
-  non-deprecated symbols as soon as possible.
+* Deprecated symbols might not receive bug fixes, so it is recommended to
+  switch to non-deprecated symbols as soon as possible.
 
 ## Minor versions guarantees
 
@@ -98,23 +103,28 @@ When tightening a validation rule or invariant on existing code:
 * Note that emitting a runtime warning requires a runtime interception point,
   such as a constructor, function call, or property accessor. Where no
   interception point exists (for example, a plain data attribute or mutable
-  field), use documented or static deprecation notices instead.
+  field), turn it into a property, or say it in the documentation.
 
 #### Deprecating a single member or attribute
 
 When deprecating individual parts of an existing structure rather than an
-entire type or function:
+entire type or function (see [Deprecations](deprecations.md) for how to mark
+each of these):
 
 * **Methods and properties:** Mark them as `@deprecated`.
-* **Enum members:** Use `frequenz.core.enum.Enum` to mark members as deprecated.
-* **Plain data attributes:** Plain data attributes and public fields typically
-  lack runtime interception points. Mark them as deprecated in documentation
-  and static type annotations, and defer structural removal or renaming to a
-  minor release.
+* **Enum members:** Use `frequenz.core.enum.Enum` to mark members as deprecated,
+  see [Use `frequenz.core` for enum members and moved symbols](deprecations.md#use-frequenzcore-for-enum-members-and-moved-symbols).
+* **Plain data attributes:** Plain data attributes and public fields lack
+  runtime interception points, and type checkers can't report them. Turn them
+  into a property marked as `@deprecated`, see [Deprecating a method, a
+  property or an attribute](deprecations.md#deprecating-a-method-a-property-or-an-attribute).
+  Where that isn't possible, a hand-written notice in the documentation is the
+  only way to tell users.
 
 ### Minor releases
 
-* Remove all old deprecated symbols.
+* Deprecated symbols MAY be removed. See [Removing a deprecated
+  symbol](deprecations.md#removing-a-deprecated-symbol) for when to do it.
 * Ideally minor releases should not require any code changes if coming from the
   last patch version of the previous minor and no deprecated symbols are used.
   To achieve this:
@@ -137,8 +147,9 @@ entire type or function:
 
     * Remove all deprecated.
     * Rename `MyClass5` to `MyClass`.
-    * Add a deprecated alias for `MyClass5`: `@deprecated MyClass5: TypeAlias
-      = MyClass`
+    * Keep `MyClass5` as a deprecated alias of `MyClass`, with
+      `deprecated_aliases()`, see [Moving a symbol to another
+      module](deprecations.md#moving-a-symbol-to-another-module).
 
   When using this scheme, jumping between consecutive minor versions should
   not require any code changes, as long as no deprecated symbols are used, so
@@ -159,8 +170,13 @@ We can create a new function `foo2` with the new name and deprecate the old
 one:
 
 ```python
-@deprecated("foo is deprecated, please use `foo2` instead")
-def foo(wrong_arg: int) -> None: ...
+@deprecated("fqn.mypkg.foo is deprecated. Use fqn.mypkg.foo2 instead.")
+def foo(wrong_arg: int) -> None:
+    """Do foo.
+
+    Deprecated:
+        Deprecated since v0.1.1. Use [`foo2`][fqn.mypkg.foo2] instead.
+    """
 
 def foo2(right_arg: str) -> None: ...
 ```
