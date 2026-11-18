@@ -13,6 +13,28 @@ the first place, which is the same work after 1.0.0.
 In this document we use the words like MUST, MAY, etc. with the meaning defined
 by [RFC2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
+## Finding your case
+
+Each kind of symbol is deprecated in its own way. Find yours below and follow
+the link to its section:
+
+| Deprecating                                                                                    | With                                                       |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [A function or a class](#use-warningsdeprecated--typing_extensionsdeprecated-where-it-reaches) | `@deprecated`                                              |
+| [A method or a property](#deprecating-a-method-a-property-or-an-attribute)                     | `@deprecated`                                              |
+| [Setting or deleting a property](#deprecating-a-method-a-property-or-an-attribute)             | `@deprecated` on the setter or the deleter                 |
+| [An attribute](#deprecating-a-method-a-property-or-an-attribute)                               | a property with `@deprecated`                              |
+| [A function argument](#deprecating-a-function-argument)                                        | a `@deprecated` overload, and a warning in the function    |
+| [An overload](#deprecating-an-overload)                                                        | `@deprecated` on it, and a warning in the function         |
+| [An enum member](#use-frequenzcore-for-enum-members-and-moved-symbols)                         | `deprecated_member()`                                      |
+| [A moved or renamed symbol](#moving-a-symbol-to-another-module)                                | `deprecated_aliases()`                                     |
+| [A module or a constant](#writing-the-notice-by-hand)                                          | a hand-written notice only                                 |
+
+Whatever the symbol, read [The warning and the
+notice](#the-warning-and-the-notice) for how to write both texts, and add [a
+test and a release
+note](#every-deprecation-needs-a-test-and-a-release-note).
+
 ## A deprecation is never a breaking change
 
 A deprecated symbol keeps working exactly as before. Code that uses it MUST
