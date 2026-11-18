@@ -144,8 +144,9 @@ each of these):
 
     * Remove all deprecated.
     * Rename `MyClass5` to `MyClass`.
-    * Add a deprecated alias for `MyClass5`: `@deprecated MyClass5: TypeAlias
-      = MyClass`
+    * Keep `MyClass5` as a deprecated alias of `MyClass`, with
+      `deprecated_aliases()`, see [Moving a symbol to another
+      module](deprecations.md#moving-a-symbol-to-another-module).
 
   When using this scheme, jumping between consecutive minor versions should
   not require any code changes, as long as no deprecated symbols are used, so
