@@ -43,8 +43,8 @@ version Z (0.y.Z):
 
 Additionally:
 
-* Deprecated symbols MAY NOT be maintained, it is recommended to switch to
-  non-deprecated symbols as soon as possible.
+* Deprecated symbols might not receive bug fixes, so it is recommended to
+  switch to non-deprecated symbols as soon as possible.
 
 ## Minor versions guarantees
 
