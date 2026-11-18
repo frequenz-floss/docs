@@ -83,9 +83,10 @@ releases) rules.
 Every deprecation reaches users through two texts, written for different
 readers, so they follow different rules:
 
-* The **warning**, emitted at runtime and, for decorated symbols, also reported
-  by `mypy`. It is read in a terminal or a log, far from the deprecated symbol:
-  it points at the line that used it, not at the symbol itself.
+* The **warning**, emitted at runtime and, for decorated symbols, also shown
+  by type checkers. It is read in a terminal, a log or an editor, far from the
+  deprecated symbol: it points at the line that used it, not at the symbol
+  itself.
 * The **notice**, the `Deprecated:` admonition in the API documentation. It is
   read right where the deprecated symbol is documented.
 
@@ -166,7 +167,8 @@ decorator (or
 [`typing_extensions.deprecated`](https://typing-extensions.readthedocs.io/en/stable/#typing_extensions.deprecated)
 for Python <3.13) gives three things:
 
-* `mypy` reports every use of the symbol.
+* Type checkers can report every use of the symbol, see [What type checkers
+  report](#what-type-checkers-report).
 * The symbol warns at runtime.
 * The symbol is marked as deprecated in the API documentation.
 
@@ -255,9 +257,9 @@ does](#what-the-documentation-tooling-does).
 
 The decorator can't be applied to an argument, but it can be applied to an
 `@overload`. Add an overload that takes the deprecated argument, and decorate
-that overload. `mypy` then reports every call that matches it. An overload
-doesn't warn at runtime, so the implementation warns when it gets the argument. The notice is [written
-by hand](#writing-the-notice-by-hand).
+that overload. Type checkers can then report every call that matches it. An
+overload doesn't warn at runtime, so the implementation warns when it gets the
+argument. The notice is [written by hand](#writing-the-notice-by-hand).
 
 ```python
 import warnings
@@ -359,8 +361,8 @@ def wait(timeout: float | timedelta) -> None:
 
 ## Deprecating a method, a property or an attribute
 
-The decorator works on a method like on any function: `mypy` reports every
-call, the method warns at runtime, and the notice is [written by
+The decorator works on a method like on any function: type checkers can report
+every call, the method warns at runtime, and the notice is [written by
 hand](#writing-the-notice-by-hand):
 
 ```python
@@ -500,7 +502,21 @@ as deprecated. Without a hand-written notice there, the function or property
 gets one notice with the warnings of all its deprecated parts, and each part
 logs a warning.
 
-## What type checkers cannot do
+## What type checkers report
+
+Editors that use `pyright`, such as VS Code with Pylance, strike through every
+use of a decorated symbol and show its warning on hover, with no configuration.
+
+`mypy` reports them only with its optional `deprecated` error code, which
+`--strict` doesn't enable. The [repository configuration
+template](https://github.com/frequenz-floss/frequenz-repo-config-python) leaves
+it off. As an error, it would also fail the type check on every deprecation
+coming from a dependency or from the standard library, and `mypy` can't limit
+it to the project's own package
+([python/mypy#22026](https://github.com/python/mypy/issues/22026)). Instead,
+the [`pytest` filter](#a-deprecation-is-never-a-breaking-change) makes the
+project's own uses fail the tests, since everything this guide marks with the
+decorator also warns at runtime. That covers only the code the tests run.
 
 The type checker can't report an exact alias, a re-exported name, a module and
 a constant.
