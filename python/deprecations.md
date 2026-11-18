@@ -164,7 +164,7 @@ On a class or a function, the
 [`warnings.deprecated`](https://docs.python.org/3/library/warnings.html#warnings.deprecated)
 decorator (or
 [`typing_extensions.deprecated`](https://typing-extensions.readthedocs.io/en/stable/#typing_extensions.deprecated)
-for Python <3.12) gives three things:
+for Python <3.13) gives three things:
 
 * `mypy` reports every use of the symbol.
 * The symbol warns at runtime.
