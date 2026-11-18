@@ -103,7 +103,7 @@ When tightening a validation rule or invariant on existing code:
 * Note that emitting a runtime warning requires a runtime interception point,
   such as a constructor, function call, or property accessor. Where no
   interception point exists (for example, a plain data attribute or mutable
-  field), use documented or static deprecation notices instead.
+  field), turn it into a property, or say it in the documentation.
 
 #### Deprecating a single member or attribute
 
@@ -114,10 +114,12 @@ each of these):
 * **Methods and properties:** Mark them as `@deprecated`.
 * **Enum members:** Use `frequenz.core.enum.Enum` to mark members as deprecated,
   see [Use `frequenz.core` for enum members and moved symbols](deprecations.md#use-frequenzcore-for-enum-members-and-moved-symbols).
-* **Plain data attributes:** Plain data attributes and public fields typically
-  lack runtime interception points. Mark them as deprecated in documentation
-  and static type annotations, and defer structural removal or renaming to a
-  minor release.
+* **Plain data attributes:** Plain data attributes and public fields lack
+  runtime interception points, and type checkers can't report them. Turn them
+  into a property marked as `@deprecated`, see [Deprecating a method, a
+  property or an attribute](deprecations.md#deprecating-a-method-a-property-or-an-attribute).
+  Where that isn't possible, a hand-written notice in the documentation is the
+  only way to tell users.
 
 ### Minor releases
 
