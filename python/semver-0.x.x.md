@@ -123,7 +123,8 @@ each of these):
 
 ### Minor releases
 
-* Remove all old deprecated symbols.
+* Deprecated symbols MAY be removed. See [Removing a deprecated
+  symbol](deprecations.md#removing-a-deprecated-symbol) for when to do it.
 * Ideally minor releases should not require any code changes if coming from the
   last patch version of the previous minor and no deprecated symbols are used.
   To achieve this:
