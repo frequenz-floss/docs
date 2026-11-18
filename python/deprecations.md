@@ -209,7 +209,10 @@ from frequenz.core.enum import Enum, deprecated_member
 
 class TaskStatus(Enum):
     OPEN = 1
+    """The task is open."""
+
     PENDING = deprecated_member(1, new_name="OPEN", since="v1.2.0")
+    """The task is pending."""
 ```
 
 `new_name` is the member to use instead, in the same enum, and `since` the
@@ -217,6 +220,10 @@ version it is deprecated in. Reaching `TaskStatus.PENDING` warns
 `fqn.mypkg.TaskStatus.PENDING is deprecated. Use fqn.mypkg.TaskStatus.OPEN
 instead.`, and its notice says ``Deprecated since v1.2.0. Use
 [`OPEN`][fqn.mypkg.TaskStatus.OPEN] instead.``
+
+Give the replacement member a docstring. By default, the documentation leaves
+out members without one, so the notice's link would have no target, which fails
+the strict build.
 
 When there is no member to point at, or the standard wording is not enough,
 pass a `message`, written by the rules for warnings above. It replaces the
