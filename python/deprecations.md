@@ -532,13 +532,39 @@ use of a decorated symbol and show its warning on hover, with no configuration.
 `mypy` reports them only with its optional `deprecated` error code, which
 `--strict` doesn't enable. The [repository configuration
 template](https://github.com/frequenz-floss/frequenz-repo-config-python) leaves
-it off. As an error, it would also fail the type check on every deprecation
-coming from a dependency or from the standard library, and `mypy` can't limit
-it to the project's own package
-([python/mypy#22026](https://github.com/python/mypy/issues/22026)). Instead,
-the [`pytest` filter](#a-deprecation-is-never-a-breaking-change) makes the
-project's own uses fail the tests, since everything this guide marks with the
-decorator also warns at runtime. That covers only the code the tests run.
+it off, and projects SHOULD NOT enable it until `mypy` can limit it to the
+project's own symbols
+([python/mypy#22026](https://github.com/python/mypy/issues/22026)).
+
+As an error, it breaks the promise that [a deprecation is never a breaking
+change](#a-deprecation-is-never-a-breaking-change). `mypy` reports every
+deprecated symbol the project uses, including those of its dependencies and of
+the standard library. So when a dependency deprecates something, the type check
+of every project using it fails, although their code didn't change. If every
+Frequenz project enabled it, deprecating a symbol in a library would break the
+CI of every downstream project that uses it. The `deprecated_calls_exclude`
+option can only leave packages out, so it would have to list every dependency,
+including indirect ones, and each one missing breaks the CI again.
+
+`--report-deprecated-as-note` turns these errors into notes, which don't fail
+the type check, but it has its own problems:
+
+* Most notes are about dependencies, and many can't be addressed yet, because
+  the replacement doesn't exist in the oldest version of the dependency the
+  project supports. They come back on every run, and in a large project a real
+  error is easy to miss among a hundred lines of notes.
+* A note looks like something to fix. A developer, or more likely an AI agent,
+  may replace the deprecated symbol and break compatibility with the older
+  versions, or raise the minimum version of the dependency to make the note go
+  away. Whether to drop those versions is a judgement call about the project's
+  users, which a note doesn't give enough context to make. The CI doesn't catch
+  it either: `mypy` runs against the newest dependencies, and a raised minimum
+  version passes every check.
+
+Instead, the [`pytest` filter](#a-deprecation-is-never-a-breaking-change) makes
+the project's own uses fail the tests, and only those, since everything this
+guide marks with the decorator also warns at runtime. That covers only the code
+the tests run.
 
 [PEP 702](https://peps.python.org/pep-0702/) covers only classes, functions and
 overloads, so type checkers can't report a deprecated module, constant or
