@@ -166,12 +166,12 @@ We can create a new function `foo2` with the new name and deprecate the old
 one:
 
 ```python
-@deprecated("mypkg.foo is deprecated. Use mypkg.foo2 instead.")
+@deprecated("fqn.mypkg.foo is deprecated. Use fqn.mypkg.foo2 instead.")
 def foo(wrong_arg: int) -> None:
     """Do foo.
 
     Deprecated:
-        Deprecated since v0.1.1. Use [`foo2`][mypkg.foo2] instead.
+        Deprecated since v0.1.1. Use [`foo2`][fqn.mypkg.foo2] instead.
     """
 
 def foo2(right_arg: str) -> None: ...
