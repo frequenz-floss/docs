@@ -518,22 +518,11 @@ the [`pytest` filter](#a-deprecation-is-never-a-breaking-change) makes the
 project's own uses fail the tests, since everything this guide marks with the
 decorator also warns at runtime. That covers only the code the tests run.
 
-The type checker can't report an exact alias, a re-exported name, a module and
-a constant.
-
-[PEP 702](https://peps.python.org/pep-0702/) covers classes, functions and
-overloads only. It explicitly rejected deprecating whole modules, object
-attributes and constants, and rejected a `Deprecated[T, message]` type
-modifier. Accordingly, `mypy` accepts the decorator on `FuncDef`,
-`OverloadedFuncDef` and `TypeInfo`, and nothing else.
-
-A type alias also launders an existing deprecation. Given `Alias: TypeAlias =
-DeprecatedClass`, only the alias definition itself is reported; uses of `Alias`
-are not reported at all.
-
-So for everything in that category the rendered admonition, and the runtime
-warning where there is one, are the only channels that reach the user, which is
-why the admonition is not optional.
+[PEP 702](https://peps.python.org/pep-0702/) covers only classes, functions and
+overloads, so type checkers can't report a deprecated module, constant or
+attribute, an enum member, or an alias for a moved symbol. For those, the
+notice, and the runtime warning where there is one, are the only things that
+reach users, which is why the notice is not optional.
 
 ## Moving a symbol to another module
 
@@ -594,9 +583,11 @@ Two things MUST be observed when doing this:
 
 ## When an exact alias is not the right answer
 
-An alias keeps the old and new names interchangeable, but it also removes the
-type checker's ability to report anything, as described above. Which side wins
-depends on the symbol:
+An alias keeps the old and new names interchangeable, but type checkers can't
+report its uses. The decorator can't be applied to an alias, and aliasing a
+deprecated class doesn't help either: given `Alias: TypeAlias =
+DeprecatedClass`, `mypy` reports only the alias definition, not the uses of
+`Alias`. Which side wins depends on the symbol:
 
 * **Enums:** an enum with members cannot be subclassed, so an alias is the only
   option that keeps values comparable.
