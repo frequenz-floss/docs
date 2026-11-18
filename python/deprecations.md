@@ -183,10 +183,11 @@ class OldThing:
     """
 ```
 
-On a class, the decorator warns on instantiation only, because it wraps
-`__new__`. A type that users receive rather than construct therefore emits no
-runtime warning at all, which is worth knowing when judging whether the runtime
-signal is doing any work for that symbol.
+On a class, the decorator warns only when the class is instantiated or
+subclassed, because it wraps `__new__` and `__init_subclass__`. A type that
+users receive rather than construct or subclass therefore emits no runtime
+warning at all, which is worth knowing when judging whether the runtime signal
+is doing any work for that symbol.
 
 ## Use `frequenz.core` for enum members and moved symbols
 
